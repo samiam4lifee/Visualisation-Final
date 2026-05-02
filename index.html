@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -7,14 +8,251 @@
         body { font-family: Arial; }
         #chart { margin-top: 20px; }
     </style>
+</head>
 
 <body>
 
-    <h2>Average Addiction Level by Platform Usage</h2>
+<h2>Average Addiction Level by Platform Usage</h2>
 
-    <label for="ageSelect">Select Age:</label>
-    <select id="ageSelect"></select>
+<label for="platformSelect">Select Platform:</label>
+<select id="platformSelect"></select>
 
-    <div id="chart"></div>
+<div id="chart"></div>
+
+<script>
+d3.csv("Teen_Mental_Health_Dataset.csv").then(rawData => {
+
+    rawData.forEach(d => {
+        d.age = +d.age;
+        d.stress_level = +d.stress_level;
+        d.anxiety_level = +d.anxiety_level;
+    });
+
+    // Compute averages per platform per age
+    const grouped = d3.rollups(
+        rawData,
+        v => ({
+            stress: d3.mean(v, d => d.stress_level),
+            anxiety: d3.mean(v, d => d.anxiety_level)
+        }),
+        d => d.platform_usage,
+        d => d.age
+    );
+
+    // Flatten structure
+    const data = [];
+    grouped.forEach(([platform, ages]) => {
+        ages.forEach(([age, vals]) => {
+            data.push({
+                platform_usage: platform,
+                age: age,
+                stress_level: vals.stress,
+                anxiety_level: vals.anxiety
+            });
+        });
+    });
+
+    // Dropdown values = all platforms
+    const platforms = [...new Set(data.map(d => d.platform_usage))].sort();
+    const dropdown = d3.select("#platformSelect");
+
+    dropdown.selectAll("option")
+        .data(platforms)
+        .enter()
+        .append("option")
+        .text(d => d)
+        .attr("value", d => d);
+
+    // FIXED x-axis = all ages
+    const allAges = [...new Set(data.map(d => d.age))].sort((a,b) => a-b);
+
+    // Chart dimensions
+    const width = 750;
+    const height = 500;
+    const margin = { top: 40, right: 40, bottom: 80, left: 80 };
+
+    // Create two SVGs side by side
+    const container = d3.select("#chart")
+        .style("display", "flex")
+        .style("gap", "20px");
+
+    const svgStress = container.append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    const svgAnxiety = container.append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    // Shared x-scale
+    const xScale = d3.scaleBand()
+        .padding(0.3)
+        .range([margin.left, width - margin.right])
+        .domain(allAges);
+
+    // Separate y-scales
+    const yStress = d3.scaleLinear().range([height - margin.bottom, margin.top]);
+    const yAnxiety = d3.scaleLinear().range([height - margin.bottom, margin.top]);
+
+    function updateCharts(selectedPlatform) {
+
+        // Align data to fixed age list
+        const aligned = allAges.map(age => {
+            const match = data.find(d => d.platform_usage === selectedPlatform && d.age === age);
+            return {
+                age: age,
+                stress_level: match ? match.stress_level : 0,
+                anxiety_level: match ? match.anxiety_level : 0
+            };
+        });
+
+        // Update y domains
+        yStress.domain([0, d3.max(aligned, d => d.stress_level)]);
+        yAnxiety.domain([0, d3.max(aligned, d => d.anxiety_level)]);
+
+        // -------------------------
+        // STRESS CHART
+        // -------------------------
+        const barsStress = svgStress.selectAll("rect")
+            .data(aligned, d => d.age);
+
+        barsStress.enter()
+            .append("rect")
+            .attr("x", d => xScale(d.age))
+            .attr("y", height - margin.bottom)
+            .attr("width", xScale.bandwidth())
+            .attr("height", 0)
+            .attr("fill", "steelblue")
+            .transition()
+            .duration(600)
+            .attr("y", d => yStress(d.stress_level))
+            .attr("height", d => height - margin.bottom - yStress(d.stress_level));
+
+        barsStress.transition()
+            .duration(600)
+            .attr("x", d => xScale(d.age))
+            .attr("y", d => yStress(d.stress_level))
+            .attr("width", xScale.bandwidth())
+            .attr("height", d => height - margin.bottom - yStress(d.stress_level));
+
+        barsStress.exit().remove();
+
+        svgStress.selectAll(".x-axis").remove();
+        svgStress.selectAll(".x-axis-label").remove();
+        svgStress.append("g")
+            .attr("transform", `translate(0, ${height - margin.bottom})`)
+            .attr("class", "x-axis")
+            .call(d3.axisBottom(xScale));
+
+        svgStress.append("text")
+            .attr("class", "x-axis-label")
+            .attr("x", margin.left + (width - margin.left - margin.right) / 2)
+            .attr("y", height - 10)
+            .attr("text-anchor", "middle")
+            .text("Age");
+
+        svgStress.selectAll(".y-axis").remove();
+        svgStress.selectAll(".y-axis-label").remove();
+        svgStress.append("g")
+            .attr("transform", `translate(${margin.left}, 0)`)
+            .attr("class", "y-axis")
+            .call(d3.axisLeft(yStress));
+
+        svgStress.append("text")
+            .attr("class", "y-axis-label")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -margin.top - (height - margin.top - margin.bottom) / 2)
+            .attr("y", 20)
+            .attr("text-anchor", "middle")
+            .text("Levels");
+
+        svgStress.selectAll(".title").remove();
+        svgStress.append("text")
+            .attr("class", "title")
+            .attr("x", width / 2)
+            .attr("y", margin.top)
+            .attr("text-anchor", "middle")
+            .text("Average Stress Level");
+
+        // -------------------------
+        // ANXIETY CHART
+        // -------------------------
+        const barsAnxiety = svgAnxiety.selectAll("rect")
+            .data(aligned, d => d.age);
+
+        barsAnxiety.enter()
+            .append("rect")
+            .attr("x", d => xScale(d.age))
+            .attr("y", height - margin.bottom)
+            .attr("width", xScale.bandwidth())
+            .attr("height", 0)
+            .attr("fill", "tomato")
+            .transition()
+            .duration(600)
+            .attr("y", d => yAnxiety(d.anxiety_level))
+            .attr("height", d => height - margin.bottom - yAnxiety(d.anxiety_level));
+
+        barsAnxiety.transition()
+            .duration(600)
+            .attr("x", d => xScale(d.age))
+            .attr("y", d => yAnxiety(d.anxiety_level))
+            .attr("width", xScale.bandwidth())
+            .attr("height", d => height - margin.bottom - yAnxiety(d.anxiety_level));
+
+        barsAnxiety.exit().remove();
+
+        svgAnxiety.selectAll(".x-axis").remove();
+        svgAnxiety.selectAll(".x-axis-label").remove();
+        svgAnxiety.append("g")
+            .attr("transform", `translate(0, ${height - margin.bottom})`)
+            .attr("class", "x-axis")
+            .call(d3.axisBottom(xScale));
+
+        svgAnxiety.append("text")
+            .attr("class", "x-axis-label")
+            .attr("x", margin.left + (width - margin.left - margin.right) / 2)
+            .attr("y", height - 10)
+            .attr("text-anchor", "middle")
+            .text("Age");
+
+        svgAnxiety.selectAll(".y-axis").remove();
+        svgAnxiety.selectAll(".y-axis-label").remove();
+        svgAnxiety.append("g")
+            .attr("transform", `translate(${margin.left}, 0)`)
+            .attr("class", "y-axis")
+            .call(d3.axisLeft(yAnxiety));
+
+        svgAnxiety.append("text")
+            .attr("class", "y-axis-label")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -margin.top - (height - margin.top - margin.bottom) / 2)
+            .attr("y", 20)
+            .attr("text-anchor", "middle")
+            .text("Levels");
+
+        svgAnxiety.selectAll(".title").remove();
+        svgAnxiety.append("text")
+            .attr("class", "title")
+            .attr("x", width / 2)
+            .attr("y", margin.top)
+            .attr("text-anchor", "middle")
+            .text("Average Anxiety Level");
+    }
+
+    // Initial charts
+    updateCharts(platforms[0]);
+
+    // Dropdown listener
+    dropdown.on("change", function () {
+        updateCharts(this.value);
+    });
+
+}).catch(error => {
+    console.error("Error loading CSV:", error);
+    d3.select("#chart").append("p").style("color", "red").text("Unable to load dataset. Please run this page through a web server and keep the CSV in the same folder.");
+});
+</script>
+
+
 </body>
 </html>
