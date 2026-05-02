@@ -1,24 +1,20 @@
 <html>
 <head>
-    <title>Final Visualisation</title>
+    <meta charset="UTF-8">
+    <title>Interactive Bar Chart</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-            margin: 0;
-            padding: 20px;
-        }
-        h1 {
-            color: #333;
-        }
-        p {
-            color: #666;
-        }
+        body { font-family: Arial; }
+        #chart { margin-top: 20px; }
     </style>
 
 <body>
-    <h1>My Explanations</h1>
-    <p>When I looked at my dataset, I knew I wanted to create a bar chart to show the changs in mental health scores amongst teens as it seemed to be the easiest
-       way show how the levels change with different social media platforms. I did consider using a line chart as well, but it didn't have the same impact that the bar chart did.</p>
+
+    <h2>Average Addiction Level by Platform Usage</h2>
+
+    <label for="ageSelect">Select Age:</label>
+    <select id="ageSelect"></select>
+
+    <div id="chart"></div>
 </body>
 </html>
